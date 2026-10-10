@@ -31,12 +31,12 @@ public class ApiClient {
     @Column(name = "rate_limit_per_minute", nullable = false)
     private Integer rateLimitPerMinute;
 
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private ClientStatus status = ClientStatus.ACTIVE;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private Instant createdAt;
 }
