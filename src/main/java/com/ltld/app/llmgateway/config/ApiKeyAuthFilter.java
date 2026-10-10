@@ -27,6 +27,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
     public static final String HEADER = "X-API-Key";
+    public static final String CLIENT_ATTRIBUTE = "apiClient";
 
     private final ApiClientRepository apiClientRepository;
     private final JsonMapper jsonMapper;
@@ -45,13 +46,15 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         }
 
         String apiKeyHash = ApiKeyHasher.sha256Hex(rawKey);
-        Optional<ApiClient> apiClient = apiClientRepository.findByApiKeyHash(apiKeyHash)
+        Optional<ApiClient> found = apiClientRepository.findByApiKeyHash(apiKeyHash)
                 .filter(client -> client.getStatus() == ClientStatus.ACTIVE);
 
-        if(apiClient.isEmpty()){
+        if(found.isEmpty()){
             writeUnauthorized(request,response);
             return;
         }
+
+        request.setAttribute(CLIENT_ATTRIBUTE, found.get());
 
         filterChain.doFilter(request, response);
     }

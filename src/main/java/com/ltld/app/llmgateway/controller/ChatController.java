@@ -1,23 +1,24 @@
 package com.ltld.app.llmgateway.controller;
 
+import com.ltld.app.llmgateway.config.ApiKeyAuthFilter;
+import com.ltld.app.llmgateway.config.RequestIdFilter;
 import com.ltld.app.llmgateway.dto.ChatRequest;
 import com.ltld.app.llmgateway.dto.ChatResponse;
+import com.ltld.app.llmgateway.entity.ApiClient;
 import com.ltld.app.llmgateway.enums.FinishReason;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1")
 public class ChatController {
     @PostMapping("/chat")
-    public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
+    public ChatResponse chat(
+            @Valid @RequestBody ChatRequest request,
+            @RequestAttribute(RequestIdFilter.ATTRIBUTE) String requestId,
+            @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) ApiClient client) {
         return ChatResponse.builder()
-                .requestId(UUID.randomUUID().toString())
+                .requestId(requestId)
                 .provider("stub")
                 .model(request.getModel())
                 .content("stub response")
