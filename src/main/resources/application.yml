@@ -20,3 +20,10 @@ spring:
 logging:
   pattern:
     level: "%5p [%X{requestId}]"
+
+llm:
+  providers:
+    groq:
+      base-url: https://api.groq.com/openai/v1
+      api-key: ${GROQ_API_KEY:}
+      timeout: 30s

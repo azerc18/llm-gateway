@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 @Slf4j
@@ -35,6 +36,11 @@ public class GlobalExceptionHandler {
     ResponseEntity<ErrorResponse> handleUnknown(Exception ex, HttpServletRequest request) {
         log.error("Unexpected error", ex);
         return build(ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.getMessage(), request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ErrorResponse> handleNotFound(NoResourceFoundException ex, HttpServletRequest request) {
+        return build(ErrorCode.NOT_FOUND, ErrorCode.NOT_FOUND.getMessage(), request);
     }
 
     private ResponseEntity<ErrorResponse> build(ErrorCode code, String message, HttpServletRequest request) {
