@@ -47,7 +47,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
         String apiKeyHash = ApiKeyHasher.sha256Hex(rawKey);
         Optional<ApiClient> found = apiClientRepository.findByApiKeyHash(apiKeyHash)
-                .filter(client -> client.getStatus() == ClientStatus.ACTIVE);
+               .filter(client -> client.getStatus() == ClientStatus.ACTIVE);
 
         if(found.isEmpty()){
             writeUnauthorized(request,response);
