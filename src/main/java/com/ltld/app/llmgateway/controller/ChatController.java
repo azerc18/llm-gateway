@@ -2,8 +2,8 @@ package com.ltld.app.llmgateway.controller;
 
 import com.ltld.app.llmgateway.config.ApiKeyAuthFilter;
 import com.ltld.app.llmgateway.config.RequestIdFilter;
-import com.ltld.app.llmgateway.dto.ChatRequest;
-import com.ltld.app.llmgateway.dto.ChatResponse;
+import com.ltld.app.llmgateway.dto.chatdto.ChatRequest;
+import com.ltld.app.llmgateway.dto.chatdto.ChatResponse;
 import com.ltld.app.llmgateway.entity.ApiClient;
 import com.ltld.app.llmgateway.enums.FinishReason;
 import jakarta.validation.Valid;
