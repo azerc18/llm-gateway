@@ -17,3 +17,6 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+logging:
+  pattern:
+    level: "%5p [%X{requestId}]"
