@@ -58,7 +58,6 @@ public class GroqAdapter implements ProviderAdapter {
     }
 
     private ProviderResult toResult(GroqResponse response) {
-        GroqResponse.Choice choice = response.choices().get(0);
         GroqResponse.Usage u = response.usage();
 
         long input = u.promptTokens() == null ? 0 : u.promptTokens();
@@ -75,6 +74,8 @@ public class GroqAdapter implements ProviderAdapter {
         if (response.choices() == null || response.choices().isEmpty()) {
             return new ProviderResult(name(), response.model(), "", FinishReason.OTHER, usage);
         }
+
+        GroqResponse.Choice choice = response.choices().get(0);
 
         return new ProviderResult(
                 name(),
