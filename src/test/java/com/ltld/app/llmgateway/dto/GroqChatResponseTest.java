@@ -1,6 +1,6 @@
 package com.ltld.app.llmgateway.dto;
 
-import com.ltld.app.llmgateway.provider.groq.GroqResponse;
+import com.ltld.app.llmgateway.provider.groq.dto.GroqResponse;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
