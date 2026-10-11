@@ -3,18 +3,23 @@ package com.ltld.app.llmgateway.provider.groq;
 import com.ltld.app.llmgateway.dto.chatdto.ChatRequest;
 import com.ltld.app.llmgateway.dto.chatdto.ChatResponse;
 import com.ltld.app.llmgateway.enums.FinishReason;
+import com.ltld.app.llmgateway.exception.ProviderErrorMapper;
 import com.ltld.app.llmgateway.provider.ProviderAdapter;
 import com.ltld.app.llmgateway.provider.ProviderResult;
 import com.ltld.app.llmgateway.provider.groq.dto.GroqRequest;
 import com.ltld.app.llmgateway.provider.groq.dto.GroqResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 
 
 @Component
+@Slf4j
 public class GroqAdapter implements ProviderAdapter {
     private final RestClient restClient;
 
@@ -26,13 +31,20 @@ public class GroqAdapter implements ProviderAdapter {
     @Override
     public ProviderResult chat(ChatRequest request, String providerModel) {
         GroqRequest body = toGroqRequest(request, providerModel);
-
-        GroqResponse response = restClient.post()
-                .uri("/chat/completions")
-                .body(body)
-                .retrieve()
-                .body(GroqResponse.class);
-
+        GroqResponse response;
+        try {
+            response = restClient.post()
+                    .uri("/chat/completions")
+                    .body(body)
+                    .retrieve()
+                    .body(GroqResponse.class);
+        } catch (RestClientResponseException e){
+            log.warn("Groq returned {}: {}", e.getStatusCode().value(), truncate(e.getResponseBodyAsString(), 300));
+            throw ProviderErrorMapper.fromHttp(name(), e);
+        } catch (ResourceAccessException e) {
+            log.warn("Groq I/O error: {}", e.getMessage());
+            throw ProviderErrorMapper.fromIo(name(), e);
+    }
         return toResult(response);
     }
 
@@ -59,10 +71,21 @@ public class GroqAdapter implements ProviderAdapter {
 
     private ProviderResult toResult(GroqResponse response) {
         GroqResponse.Usage u = response.usage();
+        long input = 0;
+        long output = 0;
+        Long reasoning = null;
 
-        long input = u.promptTokens() == null ? 0 : u.promptTokens();
-        long output = u.completionTokens() == null ? 0 : u.completionTokens();
-        Long reasoning = (u.completionTokensDetails() == null) ? null : toLong(u.completionTokensDetails().reasoningTokens());
+        if (u != null) {
+            input = u.promptTokens() == null ? 0 : u.promptTokens();
+            output = u.completionTokens() == null ? 0 : u.completionTokens();
+            reasoning = (u.completionTokensDetails() == null)
+                    ? null
+                    : toLong(u.completionTokensDetails().reasoningTokens());
+        }
+
+         input = u.promptTokens() == null ? 0 : u.promptTokens();
+         output = u.completionTokens() == null ? 0 : u.completionTokens();
+         reasoning = (u.completionTokensDetails() == null) ? 0L : toLong(u.completionTokensDetails().reasoningTokens());
 
         ChatResponse.Usage usage = ChatResponse.Usage.builder()
                 .inputTokens(input)
@@ -101,5 +124,10 @@ public class GroqAdapter implements ProviderAdapter {
 
     private static Long toLong(Integer value) {
         return value == null ? null : value.longValue();
+    }
+
+    private static String truncate(String s, int max){
+        if (s == null) return "";
+        return s.length() > max ? s.substring(0, max) + "..." : s;
     }
 }
