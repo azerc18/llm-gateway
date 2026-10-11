@@ -83,10 +83,6 @@ public class GroqAdapter implements ProviderAdapter {
                     : toLong(u.completionTokensDetails().reasoningTokens());
         }
 
-         input = u.promptTokens() == null ? 0 : u.promptTokens();
-         output = u.completionTokens() == null ? 0 : u.completionTokens();
-         reasoning = (u.completionTokensDetails() == null) ? 0L : toLong(u.completionTokensDetails().reasoningTokens());
-
         ChatResponse.Usage usage = ChatResponse.Usage.builder()
                 .inputTokens(input)
                 .reasoningTokens(reasoning)
