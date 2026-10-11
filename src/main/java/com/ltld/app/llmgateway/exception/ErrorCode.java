@@ -16,7 +16,8 @@ public enum ErrorCode {
     PROVIDER_TIMEOUT("PROVIDER_TIMEOUT","The upstream AI provider did not respond in time. Please try again later.", HttpStatus.GATEWAY_TIMEOUT),
     PROVIDER_AUTH_FAILED("PROVIDER_AUTH_FAILED","The gateway could not authenticate with the upstream AI provider. Please contact the administrator.", HttpStatus.BAD_GATEWAY),
     PROVIDER_BAD_REQUEST("PROVIDER_BAD_REQUEST","The upstream AI provider rejected the request. Please contact the administrator.", HttpStatus.BAD_GATEWAY),
-    INTERNAL_ERROR("INTERNAL_ERROR","An unexpected error occurred. Please try again later.", HttpStatus.INTERNAL_SERVER_ERROR)
+    INTERNAL_ERROR("INTERNAL_ERROR","An unexpected error occurred. Please try again later.", HttpStatus.INTERNAL_SERVER_ERROR),
+    NOT_FOUND("NOT_FOUND", "The requested resource was not found.", HttpStatus.NOT_FOUND),
     ;
 
     ErrorCode(String code, String message, HttpStatus statusCode) {

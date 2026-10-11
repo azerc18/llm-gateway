@@ -3,9 +3,12 @@ package com.ltld.app.llmgateway.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.ltld.app.llmgateway.config.ApiKeyAuthFilter;
 import com.ltld.app.llmgateway.config.RequestIdFilter;
+import com.ltld.app.llmgateway.dto.chatdto.ChatResponse;
 import com.ltld.app.llmgateway.entity.ApiClient;
 import com.ltld.app.llmgateway.enums.ClientStatus;
+import com.ltld.app.llmgateway.enums.FinishReason;
 import com.ltld.app.llmgateway.repository.ApiClientRepository;
+import com.ltld.app.llmgateway.service.ChatService;
 import com.ltld.app.llmgateway.util.ApiKeyHasher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,8 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -31,6 +36,9 @@ public class ChatControllerTest {
 
     @MockitoBean
     private ApiClientRepository apiClientRepository;
+
+    @MockitoBean
+    private ChatService chatService;
 
     private static final String VALID_BODY = """
             {"model":"chat-fast","messages":[{"role":"user","content":"hi"}]}
@@ -100,6 +108,14 @@ public class ChatControllerTest {
     void validKey_returns200_withSameRequestId() throws Exception {
         when(apiClientRepository.findByApiKeyHash(ApiKeyHasher.sha256Hex(TEST_KEY)))
                 .thenReturn(Optional.of(apiClient));
+
+        when(chatService.chat(any(), any(), anyString()))
+                .thenAnswer(inv -> ChatResponse.builder()
+                        .requestId(inv.getArgument(2))
+                        .provider("groq")
+                        .content("ok")
+                        .finishReason(FinishReason.STOP)
+                        .build());
 
         MvcResult result = mockMvc.perform(post("/api/v1/chat")
                         .contentType(MediaType.APPLICATION_JSON)

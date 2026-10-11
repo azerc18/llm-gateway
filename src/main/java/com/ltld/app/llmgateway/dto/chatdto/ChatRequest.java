@@ -1,4 +1,4 @@
-package com.ltld.app.llmgateway.dto;
+package com.ltld.app.llmgateway.dto.chatdto;
 
 import com.ltld.app.llmgateway.enums.Role;
 import jakarta.validation.Valid;
