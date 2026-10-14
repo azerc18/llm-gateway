@@ -17,6 +17,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 
+import static com.ltld.app.llmgateway.util.StringUtil.truncate;
+
 
 @Component
 @Slf4j
@@ -38,13 +40,13 @@ public class GroqAdapter implements ProviderAdapter {
                     .body(body)
                     .retrieve()
                     .body(GroqResponse.class);
-        } catch (RestClientResponseException e){
+        } catch (RestClientResponseException e) {
             log.warn("Groq returned {}: {}", e.getStatusCode().value(), truncate(e.getResponseBodyAsString(), 300));
             throw ProviderErrorMapper.fromHttp(name(), e);
         } catch (ResourceAccessException e) {
             log.warn("Groq I/O error: {}", e.getMessage());
             throw ProviderErrorMapper.fromIo(name(), e);
-    }
+        }
         return toResult(response);
     }
 
@@ -120,10 +122,5 @@ public class GroqAdapter implements ProviderAdapter {
 
     private static Long toLong(Integer value) {
         return value == null ? null : value.longValue();
-    }
-
-    private static String truncate(String s, int max){
-        if (s == null) return "";
-        return s.length() > max ? s.substring(0, max) + "..." : s;
     }
 }
