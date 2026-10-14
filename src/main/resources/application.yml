@@ -33,4 +33,5 @@ llm:
       base-url: https://generativelanguage.googleapis.com/v1beta
       api-key: ${GEMINI_API_KEY:}
       timeout: 30s
-      thinking-level: low
+  gemini:
+    thinking-level: minimal
