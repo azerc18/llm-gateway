@@ -1,5 +1,6 @@
 package com.ltld.app.llmgateway.service;
 
+import com.ltld.app.llmgateway.config.LlmProperties;
 import com.ltld.app.llmgateway.dto.chatdto.ChatRequest;
 import com.ltld.app.llmgateway.dto.chatdto.ChatResponse;
 import com.ltld.app.llmgateway.entity.ApiClient;
@@ -16,26 +17,21 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class ChatService {
-    private record Target(String provider, String model) {}
-
-    private Target resolve(String alias) {
-        return switch (alias) {
-            case "chat-gemini" -> new Target("gemini", "gemini-3.6-flash");
-            default            -> new Target("groq", "openai/gpt-oss-120b");
-        };
-    }
-
     private final Map<String, ProviderAdapter> adapters;
+    private final ModelRouter router;
 
-    public ChatService(List<ProviderAdapter> adapterList) {
+    public ChatService(List<ProviderAdapter> adapterList, ModelRouter router) {
         this.adapters = adapterList.stream()
                 .collect(Collectors.toMap(ProviderAdapter::name, a -> a));
+        this.router = router;
     }
 
     public ChatResponse chat(ChatRequest request, ApiClient client, String requestId) {
         long start = System.nanoTime();
 
-        Target target = resolve(request.getModel());
+        LlmProperties.Route route = router.resolve(request.getModel());
+        LlmProperties.Target target = route.primary();
+
         ProviderAdapter adapter = adapters.get(target.provider());
         ProviderResult result = adapter.chat(request, target.model());
 
