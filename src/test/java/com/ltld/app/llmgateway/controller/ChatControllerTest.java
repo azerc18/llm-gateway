@@ -7,6 +7,8 @@ import com.ltld.app.llmgateway.dto.chatdto.ChatResponse;
 import com.ltld.app.llmgateway.entity.ApiClient;
 import com.ltld.app.llmgateway.enums.ClientStatus;
 import com.ltld.app.llmgateway.enums.FinishReason;
+import com.ltld.app.llmgateway.exception.AppException;
+import com.ltld.app.llmgateway.exception.ErrorCode;
 import com.ltld.app.llmgateway.repository.ApiClientRepository;
 import com.ltld.app.llmgateway.service.ChatService;
 import com.ltld.app.llmgateway.util.ApiKeyHasher;
@@ -145,6 +147,24 @@ public class ChatControllerTest {
                         .header(ApiKeyAuthFilter.HEADER, TEST_KEY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.requestId").exists());
+    }
+
+    @Test
+    void unknownModel_returns400() throws Exception {
+        when(apiClientRepository.findByApiKeyHash(ApiKeyHasher.sha256Hex(TEST_KEY)))
+                .thenReturn(Optional.of(apiClient));
+        when(chatService.chat(any(), any(), anyString()))
+                .thenThrow(new AppException(ErrorCode.MODEL_NOT_SUPPORTED));
+
+        mockMvc.perform(post("/api/v1/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(ApiKeyAuthFilter.HEADER, TEST_KEY)
+                        .content("""
+                            {"model":"gpt-99","messages":[{"role":"user","content":"hi"}]}
+                            """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("MODEL_NOT_SUPPORTED"))
                 .andExpect(jsonPath("$.requestId").exists());
     }
 }

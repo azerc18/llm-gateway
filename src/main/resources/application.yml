@@ -35,3 +35,18 @@ llm:
       timeout: 30s
   gemini:
     thinking-level: minimal
+  routes:
+    chat-fast:
+      primary:
+        provider: groq
+        model: openai/gpt-oss-120b
+      fallback:
+        provider: gemini
+        model: gemini-3.6-flash
+    chat-gemini:
+      primary:
+        provider: gemini
+        model: gemini-3.6-flash
+      fallback:
+        provider: groq
+        model: openai/gpt-oss-120b
