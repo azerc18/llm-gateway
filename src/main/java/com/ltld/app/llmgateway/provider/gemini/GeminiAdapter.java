@@ -66,31 +66,20 @@ public class GeminiAdapter implements ProviderAdapter {
     }
 
     private GeminiRequest toGeminiRequest(ChatRequest request) {
-        // 1. System prompt: lọc các message có role SYSTEM, lấy content, nối bằng "\n".
-        //    Có thì tạo new GeminiContent(null, List.of(GeminiPart.ofText(...)))
-        //    Không có thì để null (nhờ @JsonInclude, field sẽ không xuất hiện trong JSON)
         String systemText = request.getMessages().stream()
                 .filter(m -> m.getRole() == Role.SYSTEM)
                 .map(ChatRequest.Message::getContent)
                 .collect(Collectors.joining("\n"));
 
-        GeminiContent systemInstruction;
+        GeminiContent systemInstruction = systemText.isBlank()
+                ? null
+                : new GeminiContent(null, List.of(GeminiPart.ofText(systemText)));
 
-        if (systemText != null || !systemText.isBlank()) {
-            systemInstruction = new GeminiContent(
-                    null, List.of(ofText(systemText))
-            );
-        } else {
-            systemInstruction = new GeminiContent(
-                    null, null);
-        }
-
-        // 2. Contents: các message KHÔNG phải SYSTEM, map thành GeminiContent(toGeminiRole(role), [ofText(content)])
         List<GeminiContent> contents = request.getMessages().stream()
                 .filter(m -> m.getRole() != Role.SYSTEM)
                 .map(c -> new GeminiContent(toGeminiRole(c.getRole()), List.of(ofText(c.getContent()))))
                 .toList();
-        // 3. GenerationConfig(maxTokens, temperature, new ThinkingConfig(thinkingLevel))
+
         GeminiRequest.GenerationConfig config = new GeminiRequest.GenerationConfig(
                 request.getMaxTokens(),
                 request.getTemperature(),
@@ -109,7 +98,6 @@ public class GeminiAdapter implements ProviderAdapter {
     }
 
     ProviderResult toResult(GeminiResponse r, String providerModel) {
-        // Phòng trường hợp Gemini trả body rỗng
         if (r == null) {
             log.warn("Gemini returned empty body");
             return new ProviderResult(name(), providerModel, "", FinishReason.OTHER, toUsage(null));
@@ -118,7 +106,6 @@ public class GeminiAdapter implements ProviderAdapter {
         String model = (r.modelVersion() != null) ? r.modelVersion() : providerModel;
         ChatResponse.Usage usage = toUsage(r.usageMetadata());
 
-        // Không có candidates: thường là prompt bị chặn ngay từ đầu (design mục 6)
         if (r.candidates() == null || r.candidates().isEmpty()) {
             String blockReason = (r.promptFeedback() == null) ? null : r.promptFeedback().blockReason();
             if (blockReason != null) {
@@ -133,7 +120,6 @@ public class GeminiAdapter implements ProviderAdapter {
         String content = extractText(candidate.content());
         FinishReason finish = mapFinishReason(candidate.finishReason());
 
-        // Lý do gốc (vd SPII, RECITATION) CHỈ ghi log, client chỉ thấy giá trị đã chuẩn hóa
         if (finish == FinishReason.CONTENT_FILTERED || finish == FinishReason.OTHER) {
             log.warn("Gemini finishReason raw={} mapped={}", candidate.finishReason(), finish);
         }
@@ -151,16 +137,16 @@ public class GeminiAdapter implements ProviderAdapter {
             input = u.promptTokenCount() == null ? 0 : u.promptTokenCount();
             candidates = u.candidatesTokenCount() == null ? 0 : u.candidatesTokenCount();
             thoughts = u.thoughtsTokenCount() == null ? 0 : u.thoughtsTokenCount();
-            reasoning = toLong(u.thoughtsTokenCount());          // vắng mặt → null, KHÔNG phải 0
+            reasoning = toLong(u.thoughtsTokenCount());
         }
 
-        long output = candidates + thoughts;                      // Gemini: candidates CHƯA gồm thoughts
+        long output = candidates + thoughts;
 
         return ChatResponse.Usage.builder()
                 .inputTokens(input)
                 .outputTokens(output)
                 .reasoningTokens(reasoning)
-                .totalTokens(input + output)                      // tự tính, không dùng totalTokenCount
+                .totalTokens(input + output)
                 .build();
     }
 
@@ -170,12 +156,12 @@ public class GeminiAdapter implements ProviderAdapter {
 
     static String extractText(GeminiContent content) {
         if (content == null || content.parts() == null) {
-            return "";                                    // vd finishReason = SAFETY: không có nội dung
+            return "";
         }
         return content.parts().stream()
-                .filter(p -> !Boolean.TRUE.equals(p.thought()))   // bỏ part "suy nghĩ"
+                .filter(p -> !Boolean.TRUE.equals(p.thought()))
                 .map(GeminiPart::text)
-                .filter(Objects::nonNull)                         // bỏ part không có text
+                .filter(Objects::nonNull)
                 .collect(Collectors.joining());
     }
 
