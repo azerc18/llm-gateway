@@ -16,8 +16,14 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class ChatService {
-    private static final String DEFAULT_PROVIDER = "groq";
-    private static final String GROQ_MODEL = "openai/gpt-oss-120b";
+    private record Target(String provider, String model) {}
+
+    private Target resolve(String alias) {
+        return switch (alias) {
+            case "chat-gemini" -> new Target("gemini", "gemini-3.6-flash");
+            default            -> new Target("groq", "openai/gpt-oss-120b");
+        };
+    }
 
     private final Map<String, ProviderAdapter> adapters;
 
@@ -29,8 +35,9 @@ public class ChatService {
     public ChatResponse chat(ChatRequest request, ApiClient client, String requestId) {
         long start = System.nanoTime();
 
-        ProviderAdapter adapter = adapters.get(DEFAULT_PROVIDER);
-        ProviderResult result = adapter.chat(request, GROQ_MODEL);
+        Target target = resolve(request.getModel());
+        ProviderAdapter adapter = adapters.get(target.provider());
+        ProviderResult result = adapter.chat(request, target.model());
 
         long latencyMs = (System.nanoTime() - start) / 1_000_000;
 

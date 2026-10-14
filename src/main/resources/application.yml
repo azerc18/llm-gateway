@@ -29,3 +29,9 @@ llm:
       base-url: https://api.groq.com/openai/v1
       api-key: ${GROQ_API_KEY:}
       timeout: 30s
+    gemini:
+      base-url: https://generativelanguage.googleapis.com/v1beta
+      api-key: ${GEMINI_API_KEY:}
+      timeout: 30s
+  gemini:
+    thinking-level: minimal
