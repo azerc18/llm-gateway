@@ -14,6 +14,7 @@ import java.util.List;
 @NoArgsConstructor
 public class ChatRequest {
     @NotBlank(message = "Model is required")
+    @Size(max = 100, message = "Model must have at most 100 characters")
     private String model;
 
     @NotEmpty(message = "Messages must not be empty")
