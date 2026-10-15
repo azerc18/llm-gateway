@@ -18,12 +18,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class RetryExecutorTest {
 
-    private final List<Duration> sleeps = new ArrayList<>();
-    private final Sleeper fakeSleeper = sleeps::add;            // ghi lại, không chờ
+    private static final Duration TIMEOUT = Duration.ofSeconds(15);
 
-    private final RetryExecutor executor = new RetryExecutor(
-            new RetryProperties(3, Duration.ofSeconds(1), 2.0, Duration.ofSeconds(4)),
-            fakeSleeper);
+    private final List<Duration> sleeps = new ArrayList<>();
+    private final Sleeper fakeSleeper = sleeps::add;                 // ghi lại, không chờ thật
+
+    private final RetryProperties props = new RetryProperties(
+            3, 1, Duration.ofSeconds(1), 2.0, Duration.ofSeconds(4), Duration.ofSeconds(50));
+
+    private final RetryExecutor executor = new RetryExecutor(props, fakeSleeper);
+
+    /** Deadline rất xa: các test này không kiểm tra deadline, chỉ kiểm tra retry. */
+    private static Deadline farAway() {
+        return Deadline.after(Duration.ofHours(1), System::nanoTime);
+    }
 
     private static ProviderResult ok() {
         var usage = ChatResponse.Usage.builder().inputTokens(1).outputTokens(1).totalTokens(2).build();
@@ -34,7 +42,7 @@ class RetryExecutorTest {
         return new ProviderException(code, "groq", 503, null);
     }
 
-    /** Trả về một Supplier: lỗi {@code failures} lần đầu, sau đó thành công. Đếm số lần được gọi. */
+    /** Lỗi {@code failures} lần đầu, sau đó thành công. Đếm số lần được gọi. */
     private static Supplier<ProviderResult> failThenSucceed(int failures, ErrorCode code, AtomicInteger calls) {
         return () -> {
             int n = calls.incrementAndGet();
@@ -43,10 +51,14 @@ class RetryExecutorTest {
         };
     }
 
+    private RetryExecutor.Outcome run(int maxAttempts, Supplier<ProviderResult> call) {
+        return executor.execute("groq", maxAttempts, TIMEOUT, farAway(), call);
+    }
+
     @Test
     void success_firstTry_noRetry_noSleep() {
         var calls = new AtomicInteger();
-        var outcome = executor.execute("groq", failThenSucceed(0, null, calls));
+        var outcome = run(3, failThenSucceed(0, null, calls));
 
         assertEquals(1, calls.get());
         assertEquals(0, outcome.retries());
@@ -56,11 +68,11 @@ class RetryExecutorTest {
     @Test
     void retryableError_thenSuccess_retriesWithBackoff() {
         var calls = new AtomicInteger();
-        var outcome = executor.execute("groq", failThenSucceed(2, ErrorCode.PROVIDER_UNAVAILABLE, calls));
+        var outcome = run(3, failThenSucceed(2, ErrorCode.PROVIDER_UNAVAILABLE, calls));
 
         assertEquals(3, calls.get());
         assertEquals(2, outcome.retries());
-        assertEquals(List.of(Duration.ofSeconds(1), Duration.ofSeconds(2)), sleeps);   // 1s rồi 2s
+        assertEquals(List.of(Duration.ofSeconds(1), Duration.ofSeconds(2)), sleeps);
     }
 
     @Test
@@ -68,11 +80,11 @@ class RetryExecutorTest {
         var calls = new AtomicInteger();
 
         ProviderException ex = assertThrows(ProviderException.class,
-                () -> executor.execute("groq", failThenSucceed(99, ErrorCode.PROVIDER_TIMEOUT, calls)));
+                () -> run(3, failThenSucceed(99, ErrorCode.PROVIDER_TIMEOUT, calls)));
 
         assertEquals(ErrorCode.PROVIDER_TIMEOUT, ex.getErrorCode());
-        assertEquals(3, calls.get());
-        assertEquals(2, sleeps.size());
+        assertEquals(3, calls.get());              // đúng maxAttempts
+        assertEquals(2, sleeps.size());            // không chờ sau lần cuối
     }
 
     @Test
@@ -80,9 +92,33 @@ class RetryExecutorTest {
         var calls = new AtomicInteger();
 
         assertThrows(ProviderException.class,
-                () -> executor.execute("groq", failThenSucceed(99, ErrorCode.PROVIDER_AUTH_FAILED, calls)));
+                () -> run(3, failThenSucceed(99, ErrorCode.PROVIDER_AUTH_FAILED, calls)));
 
         assertEquals(1, calls.get());
         assertTrue(sleeps.isEmpty());
+    }
+
+    @Test
+    void maxAttemptsParameter_overridesConfig() {
+        var calls = new AtomicInteger();
+
+        assertThrows(ProviderException.class,
+                () -> run(1, failThenSucceed(99, ErrorCode.PROVIDER_UNAVAILABLE, calls)));
+
+        assertEquals(1, calls.get());              // fallback chỉ thử 1 lần, dù config chung là 3
+        assertTrue(sleeps.isEmpty());
+    }
+
+    @Test
+    void deadlineAlreadyTooShort_doesNotCall_throwsTimeout() {
+        var calls = new AtomicInteger();
+        Deadline almostOver = Deadline.after(Duration.ofSeconds(5), System::nanoTime);   // 5s < timeout 15s
+
+        ProviderException ex = assertThrows(ProviderException.class,
+                () -> executor.execute("gemini", 1, TIMEOUT, almostOver, failThenSucceed(0, null, calls)));
+
+        assertEquals(ErrorCode.PROVIDER_TIMEOUT, ex.getErrorCode());
+        assertEquals("gemini", ex.getProvider());
+        assertEquals(0, calls.get());              // KHÔNG gọi provider khi không đủ thời gian
     }
 }

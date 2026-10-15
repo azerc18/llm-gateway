@@ -7,12 +7,20 @@ import java.time.Duration;
 
 @ConfigurationProperties(prefix = "llm.retry")
 public record RetryProperties(
-        @DefaultValue("3") int maxAttempts,
+        @DefaultValue("2") int maxAttempts,
+        @DefaultValue("1") int fallbackMaxAttempts,
         @DefaultValue("1s") Duration initialBackoff,
         @DefaultValue("2.0") double multiplier,
-        @DefaultValue("4s") Duration maxBackoff
+        @DefaultValue("4s") Duration maxBackoff,
+        @DefaultValue("50s") Duration deadline
 ) {
     public RetryProperties {
+        if (fallbackMaxAttempts < 1) {
+            throw new IllegalStateException("llm.retry.fallback-max-attempts must be >= 1");
+        }
+        if (deadline.isNegative() || deadline.isZero()) {
+            throw new IllegalStateException("llm.retry.deadline must be > 0");
+        }
         if (maxAttempts < 1) {
             throw new IllegalStateException("llm.retry.max-attempts must be >= 1");
         }
