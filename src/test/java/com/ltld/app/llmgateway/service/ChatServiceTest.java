@@ -1,6 +1,7 @@
 package com.ltld.app.llmgateway.service;
 
 import com.ltld.app.llmgateway.config.LlmProperties;
+import com.ltld.app.llmgateway.config.RetryProperties;
 import com.ltld.app.llmgateway.dto.chatdto.ChatRequest;
 import com.ltld.app.llmgateway.dto.chatdto.ChatResponse;
 import com.ltld.app.llmgateway.enums.Role;
@@ -17,14 +18,30 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ChatServiceTest {
 
+    private static final Duration TIMEOUT = Duration.ofSeconds(15);
+
+    private final LlmProperties llmProps = new LlmProperties(
+            Map.of("groq",   new LlmProperties.Provider("u", "k", TIMEOUT),
+                    "gemini", new LlmProperties.Provider("u", "k", TIMEOUT)),
+            Map.of("chat-fast",   new LlmProperties.Route(new LlmProperties.Target("groq", "g-model"), null),
+                    "chat-gemini", new LlmProperties.Route(new LlmProperties.Target("gemini", "m-model"), null)));
+
+    private final RetryProperties retryProps = new RetryProperties(
+            2, 1, Duration.ofSeconds(1), 2.0, Duration.ofSeconds(4), Duration.ofSeconds(50));
+
+    /** Ghép ChatService với các adapter giả, đồng hồ thật, sleeper không chờ. */
     private ChatService serviceWith(ProviderAdapter... adapters) {
-        var props = new LlmProperties(
-                Map.of("groq",   new LlmProperties.Provider("u", "k", Duration.ofSeconds(1)),
-                        "gemini", new LlmProperties.Provider("u", "k", Duration.ofSeconds(1))),
-                Map.of("chat-fast",   new LlmProperties.Route(new LlmProperties.Target("groq", "g-model"), null),
-                        "chat-gemini", new LlmProperties.Route(new LlmProperties.Target("gemini", "m-model"), null)));
         List<ProviderAdapter> list = List.of(adapters);
-        return new ChatService(list, new ModelRouter(props, list));
+        Sleeper noSleep = d -> { };
+        Ticker realTicker = System::nanoTime;
+
+        return new ChatService(
+                list,
+                new ModelRouter(llmProps, list),
+                new RetryExecutor(retryProps, noSleep),
+                retryProps,
+                llmProps,
+                realTicker);
     }
 
     private static ChatRequest request(String alias) {

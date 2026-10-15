@@ -109,13 +109,14 @@ public class GroqAdapterTest {
 
     @ParameterizedTest
     @CsvSource({
-            "400, PROVIDER_BAD_REQUEST,  false",
-            "404, PROVIDER_BAD_REQUEST,  false",
-            "429, PROVIDER_RATE_LIMITED, true",
-            "500, PROVIDER_ERROR,        true",
-            "503, PROVIDER_UNAVAILABLE,  true"
+            // status, errorCode, retryable, fallbackAllowed
+            "400, PROVIDER_BAD_REQUEST,  false, false",
+            "401, PROVIDER_AUTH_FAILED,  false, true",
+            "429, PROVIDER_RATE_LIMITED, true,  true",
+            "500, PROVIDER_ERROR,        true,  true",
+            "503, PROVIDER_UNAVAILABLE,  true,  true"
     })
-    void httpErrors_areMappedCorrectly(int status, ErrorCode expected, boolean retryable) {
+    void httpErrors_areMappedCorrectly(int status, ErrorCode expected, boolean retryable, boolean fallbackAllowed) {
         server.expect(requestTo(BASE_URL + "/chat/completions"))
                 .andRespond(withStatus(HttpStatus.valueOf(status)));
 
@@ -125,6 +126,7 @@ public class GroqAdapterTest {
         assertEquals(expected, ex.getErrorCode());
         assertEquals(status, ex.getUpstreamStatus());
         assertEquals(retryable, ex.isRetryable());
+        assertEquals(fallbackAllowed, ex.isFallbackAllowed());
     }
 
     @Test

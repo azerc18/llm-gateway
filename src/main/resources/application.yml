@@ -28,11 +28,11 @@ llm:
     groq:
       base-url: https://api.groq.com/openai/v1
       api-key: ${GROQ_API_KEY:}
-      timeout: 30s
+      timeout: 15s
     gemini:
       base-url: https://generativelanguage.googleapis.com/v1beta
       api-key: ${GEMINI_API_KEY:}
-      timeout: 30s
+      timeout: 15s
   gemini:
     thinking-level: minimal
   routes:
@@ -50,3 +50,10 @@ llm:
       fallback:
         provider: groq
         model: openai/gpt-oss-120b
+  retry:
+    max-attempts: 2
+    fallback-max-attempts: 1
+    initial-backoff: 1s
+    multiplier: 2.0
+    max-backoff: 4s
+    deadline: 50s
