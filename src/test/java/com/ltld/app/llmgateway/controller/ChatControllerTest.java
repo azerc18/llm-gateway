@@ -27,7 +27,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -166,5 +166,24 @@ public class ChatControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("MODEL_NOT_SUPPORTED"))
                 .andExpect(jsonPath("$.requestId").exists());
+    }
+
+    @Test
+    void modelTooLong_returns400_beforeCallingService() throws Exception {
+        when(apiClientRepository.findByApiKeyHash(ApiKeyHasher.sha256Hex(TEST_KEY)))
+                .thenReturn(Optional.of(apiClient));
+
+        String body = """
+        {"model":"%s","messages":[{"role":"user","content":"hi"}]}
+        """.formatted("a".repeat(101));
+
+        mockMvc.perform(post("/api/v1/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(ApiKeyAuthFilter.HEADER, TEST_KEY)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+
+        verify(chatService, never()).chat(any(), any(), anyString());
     }
 }

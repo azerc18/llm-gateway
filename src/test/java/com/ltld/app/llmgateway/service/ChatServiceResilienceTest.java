@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ChatServiceResilienceTest {
 
     private static final Duration T15 = Duration.ofSeconds(15);
+    private final CapturingRecorder recorder = new CapturingRecorder();
 
     private final FakeClock clock = new FakeClock();
 
@@ -41,7 +42,7 @@ class ChatServiceResilienceTest {
     private ChatService service(ScriptedAdapter groq, ScriptedAdapter gemini, RetryProperties retry) {
         List<ProviderAdapter> list = List.of(groq, gemini);
         return new ChatService(list, new ModelRouter(llmProps, list),
-                new RetryExecutor(retry, clock), retry, llmProps, clock);
+                new RetryExecutor(retry, clock), retry, llmProps, clock, recorder);
     }
 
     private static ChatRequest request() {
@@ -186,5 +187,83 @@ class ChatServiceResilienceTest {
         assertEquals(s(31), clock.elapsed());
         assertEquals(ErrorCode.PROVIDER_TIMEOUT,
                 ((ProviderException) ex.getSuppressed()[0]).getErrorCode());
+    }
+
+    @Test
+    void success_recordedOnce() {
+        var groq = groq().ok(s(1));
+
+        service(groq, gemini()).chat(request(), null, "req_1");
+
+        CallContext ctx = recorder.only();
+        assertTrue(ctx.succeeded());
+        assertEquals("groq", ctx.getProvider());
+        assertEquals(1, ctx.getAttempts());
+        assertEquals(1_000, ctx.getLatencyMs());
+        assertFalse(ctx.isFallbackUsed());
+    }
+
+    @Test
+    void retryThenFallback_countsEveryAttempt() {
+        var groq = groq()
+                .fail(ErrorCode.PROVIDER_UNAVAILABLE, ms(200))
+                .fail(ErrorCode.PROVIDER_UNAVAILABLE, ms(200));
+        var gemini = gemini().ok(s(2));
+
+        service(groq, gemini).chat(request(), null, "req_1");
+
+        CallContext ctx = recorder.only();
+        assertTrue(ctx.succeeded());
+        assertEquals("gemini", ctx.getProvider());
+        assertEquals(3, ctx.getAttempts());          // groq 2 + gemini 1
+        assertTrue(ctx.isFallbackUsed());
+        assertEquals(3_400, ctx.getLatencyMs());
+    }
+
+    @Test
+    void bothFail_recordedAsErrorOfFallback() {
+        var groq = groq()
+                .fail(ErrorCode.PROVIDER_UNAVAILABLE, ms(200))
+                .fail(ErrorCode.PROVIDER_UNAVAILABLE, ms(200));
+        var gemini = gemini().fail(ErrorCode.PROVIDER_ERROR, ms(500));
+
+        assertThrows(ProviderException.class, () -> service(groq, gemini).chat(request(), null, "req_1"));
+
+        CallContext ctx = recorder.only();
+        assertEquals(ErrorCode.PROVIDER_ERROR, ctx.getErrorCode());
+        assertEquals("gemini", ctx.getProvider());
+        assertEquals(3, ctx.getAttempts());
+        assertTrue(ctx.isFallbackUsed());
+        assertNull(ctx.getUsage());
+    }
+
+    @Test
+    void badRequest_recordedWithoutFallback() {
+        var groq = groq().fail(ErrorCode.PROVIDER_BAD_REQUEST, ms(300));
+
+        assertThrows(ProviderException.class, () -> service(groq, gemini()).chat(request(), null, "req_1"));
+
+        CallContext ctx = recorder.only();
+        assertEquals(ErrorCode.PROVIDER_BAD_REQUEST, ctx.getErrorCode());
+        assertEquals(1, ctx.getAttempts());
+        assertFalse(ctx.isFallbackUsed());
+    }
+
+    @Test
+    void deadlineSkipsFallback_attemptsShowFallbackNeverCalled() {
+        var retry45 = new RetryProperties(
+                2, 1, Duration.ofSeconds(1), 2.0, Duration.ofSeconds(4), Duration.ofSeconds(45));
+        var groq = groq()
+                .fail(ErrorCode.PROVIDER_TIMEOUT, T15)
+                .fail(ErrorCode.PROVIDER_TIMEOUT, T15);
+
+        assertThrows(ProviderException.class,
+                () -> service(groq, gemini(), retry45).chat(request(), null, "req_1"));
+
+        CallContext ctx = recorder.only();
+        assertEquals(ErrorCode.PROVIDER_TIMEOUT, ctx.getErrorCode());
+        assertEquals(2, ctx.getAttempts());          // chỉ có 2 lần gọi groq, gemini chưa từng được gọi
+        assertTrue(ctx.isFallbackUsed());            // đã đi tới bước fallback
+        assertEquals(31_000, ctx.getLatencyMs());
     }
 }
