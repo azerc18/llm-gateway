@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ChatServiceTest {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
+    private final CapturingRecorder recorder = new CapturingRecorder();
 
     private final LlmProperties llmProps = new LlmProperties(
             Map.of("groq",   new LlmProperties.Provider("u", "k", TIMEOUT),
@@ -41,7 +42,8 @@ class ChatServiceTest {
                 new RetryExecutor(retryProps, noSleep),
                 retryProps,
                 llmProps,
-                realTicker);
+                realTicker,
+                recorder);
     }
 
     private static ChatRequest request(String alias) {
@@ -77,5 +79,18 @@ class ChatServiceTest {
 
         assertTrue(res.getLatencyMs() >= 50,
                 "latencyMs phải gồm cả thời gian gọi provider, nhưng là " + res.getLatencyMs());
+    }
+
+    @Test
+    void unknownAlias_isRecordedWithoutProvider() {
+        var service = serviceWith(new FakeAdapter("groq"), new FakeAdapter("gemini"));
+
+        assertThrows(AppException.class, () -> service.chat(request("gpt-99"), null, "req_1"));
+
+        CallContext ctx = recorder.only();
+        assertEquals(ErrorCode.MODEL_NOT_SUPPORTED, ctx.getErrorCode());
+        assertEquals("gpt-99", ctx.getRequestedModel());
+        assertNull(ctx.getProvider());
+        assertEquals(0, ctx.getAttempts());
     }
 }
