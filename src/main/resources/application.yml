@@ -50,3 +50,8 @@ llm:
       fallback:
         provider: groq
         model: openai/gpt-oss-120b
+  retry:
+    max-attempts: 3
+    initial-backoff: 1s
+    multiplier: 2.0
+    max-backoff: 4s
