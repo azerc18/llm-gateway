@@ -1,5 +1,6 @@
 package com.ltld.app.llmgateway.config;
 
+import com.ltld.app.llmgateway.service.Sleeper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.CommandLineRunner;
@@ -45,6 +46,11 @@ public class RestClientConfig {
                 .defaultHeader(authHeader, authValue)
                 .requestFactory(factory)
                 .build();
+    }
+
+    @Bean
+    Sleeper sleeper() {
+        return duration -> Thread.sleep(duration);
     }
 
 
