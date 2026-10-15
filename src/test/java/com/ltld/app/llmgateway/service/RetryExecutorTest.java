@@ -121,4 +121,46 @@ class RetryExecutorTest {
         assertEquals("gemini", ex.getProvider());
         assertEquals(0, calls.get());              // KHÔNG gọi provider khi không đủ thời gian
     }
+
+    @Test
+    void notEnoughTimeForBackoffPlusCall_givesUpWithoutSleeping() {
+        FakeClock clock = new FakeClock();
+        var props = new RetryProperties(3, 1, Duration.ofSeconds(1), 2.0,
+                Duration.ofSeconds(4), Duration.ofSeconds(45));
+        var executor = new RetryExecutor(props, clock);
+        var groq = new ScriptedAdapter("groq", clock)
+                .fail(ErrorCode.PROVIDER_TIMEOUT, Duration.ofSeconds(15))
+                .fail(ErrorCode.PROVIDER_TIMEOUT, Duration.ofSeconds(15));
+        Deadline deadline = Deadline.after(props.deadline(), clock);
+
+        ProviderException ex = assertThrows(ProviderException.class,
+                () -> executor.execute("groq", 3, Duration.ofSeconds(15), deadline,
+                        () -> groq.chat(null, "m")));
+
+        assertEquals(ErrorCode.PROVIDER_TIMEOUT, ex.getErrorCode());
+        assertEquals(2, groq.calls());
+        assertEquals(List.of(Duration.ofSeconds(1)), clock.sleeps());   // không có lần ngủ 2s
+        assertEquals(Duration.ofSeconds(31), clock.elapsed());          // báo lỗi ngay ở t=31s
+    }
+
+    @Test
+    void exactlyEnoughTimeForBackoffPlusCall_stillRetries() {
+        FakeClock clock = new FakeClock();
+        var props = new RetryProperties(3, 1, Duration.ofSeconds(1), 2.0,
+                Duration.ofSeconds(4), Duration.ofSeconds(48));
+        var executor = new RetryExecutor(props, clock);
+        var groq = new ScriptedAdapter("groq", clock)
+                .fail(ErrorCode.PROVIDER_TIMEOUT, Duration.ofSeconds(15))
+                .fail(ErrorCode.PROVIDER_TIMEOUT, Duration.ofSeconds(15))
+                .ok(Duration.ofSeconds(5));
+        Deadline deadline = Deadline.after(props.deadline(), clock);
+
+        // t=31s còn đúng 17s = backoff 2s + timeout 15s → vẫn được thử lần 3
+        var outcome = executor.execute("groq", 3, Duration.ofSeconds(15), deadline,
+                () -> groq.chat(null, "m"));
+
+        assertEquals(2, outcome.retries());
+        assertEquals(List.of(Duration.ofSeconds(1), Duration.ofSeconds(2)), clock.sleeps());
+        assertEquals(Duration.ofSeconds(38), clock.elapsed());
+    }
 }

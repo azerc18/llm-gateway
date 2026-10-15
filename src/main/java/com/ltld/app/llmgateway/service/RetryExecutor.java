@@ -42,6 +42,11 @@ public class RetryExecutor {
                     throw e;
                 }
                 Duration wait = props.backoffFor(attempt);
+                if (!deadline.allows(wait.plus(callTimeout))) {
+                    log.warn("{}: {} ms left, not enough for backoff {} ms + timeout {} ms, giving up",
+                            provider, deadline.remaining().toMillis(), wait.toMillis(), callTimeout.toMillis());
+                    throw e;
+                }
                 log.warn("{} attempt {}/{} failed: {} (upstream {}), retrying in {} ms",
                         provider, attempt, maxAttempts, e.getErrorCode(), e.getUpstreamStatus(), wait.toMillis());
                 sleepOrAbort(wait, e);
