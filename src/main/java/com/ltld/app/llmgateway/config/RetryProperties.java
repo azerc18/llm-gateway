@@ -19,7 +19,7 @@ public record RetryProperties(
         if (multiplier < 1.0) {
             throw new IllegalStateException("llm.retry.multiplier must be >= 1.0");
         }
-        if(!initialBackoff().isPositive() || !maxBackoff.isPositive() ){
+        if(initialBackoff.isNegative() || maxBackoff.isNegative() ){
             throw new IllegalStateException("llm.retry.initialBackoff must be > 0");
         }
         if(initialBackoff.compareTo(maxBackoff) > 0){

@@ -20,4 +20,8 @@ public class ProviderException extends AppException  {
             default -> false;
         };
     }
+
+    public boolean isFallbackAllowed() {
+        return isRetryable() || getErrorCode() == ErrorCode.PROVIDER_AUTH_FAILED;
+    }
 }

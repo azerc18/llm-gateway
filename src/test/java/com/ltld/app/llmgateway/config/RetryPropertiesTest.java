@@ -25,5 +25,10 @@ class RetryPropertiesTest {
                 () -> new RetryProperties(0, Duration.ofSeconds(1), 2.0, Duration.ofSeconds(4)));
     }
 
-    // TODO: multiplier < 1 fails; maxBackoff < initialBackoff fails
+    @Test
+    void negativeInitialBackoff_fails() {
+        assertThrows(IllegalStateException.class,
+                () -> new RetryProperties(3, Duration.ofSeconds(-1), 2.0, Duration.ofSeconds(4)));
+
+    }
 }
